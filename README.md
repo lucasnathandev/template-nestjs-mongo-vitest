@@ -2,8 +2,8 @@ O projeto está usando o bun como CLI ao invés do npm.
 
 ## Preparar o banco
 
-```
-$ docker compose up
+```bash
+$ docker compose up -d
 ```
 
 ## Instalação

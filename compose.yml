@@ -1,15 +1,95 @@
-version: '3'
+version: "3"
 services:
-  db:
-    image: bitnami/postgresql
+  mongo1:
+    image: mongo
+    container_name: mongo1
+    restart: always
+    networks:
+      - mongo-cluster
     ports:
-      - 5432:5432
-    mem_limit: 1024m
+      - "27017:27017"
+    command: mongod --replSet rs0 --bind_ip_all
+    mem_limit: 768mb
+    cpus: 0.5
     mem_reservation: 256mb
+    cpu_shares: 512
+    tmpfs:
+      - /data/db:rw,exec,size=512m
+
+  mongo2:
+    image: mongo
+    container_name: mongo2
+    restart: always
+    depends_on:
+      - mongo1
+    networks:
+      - mongo-cluster
+    ports:
+      - "27018:27017"
+    command: mongod --replSet rs0 --bind_ip_all
+    mem_limit: 768mb
+    cpus: 0.5
+    mem_reservation: 256mb
+    cpu_shares: 512
+    tmpfs:
+      - /data/db:rw,exec,size=512m
+
+  mongo3:
+    image: mongo
+    container_name: mongo3
+    restart: always
+    depends_on:
+      - mongo1
+      - mongo2
+    networks:
+      - mongo-cluster
+    ports:
+      - "27019:27017"
+    command: mongod --replSet rs0 --bind_ip_all
+    mem_limit: 768mb
+    cpus: 0.5
+    mem_reservation: 256mb
+    cpu_shares: 512
+    tmpfs:
+      - /data/db:rw,exec,size=512m
+
+  mongo-initiate:
+    image: mongo
+    container_name: mongo-initiate
+    networks:
+      - mongo-cluster
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    mem_limit: 768mb
     cpus: 1
+    mem_reservation: 256mb
+    cpu_shares: 512
+    command: >
+      mongosh --host mongo1:27017 --eval 'config = {
+        _id: "rs0",
+        members: [
+          {_id: 0, host: "mongo1", priority: 2},
+          {_id: 1, host: "mongo2", priority: 1},
+          {_id: 2, host: "mongo3", priority: 1}
+        ]
+      }; rs.initiate(config)'
+
+  mongo-express:
+    image: mongo-express
+    container_name: mongo-express
+    restart: always
+    networks:
+      - mongo-cluster
+    ports:
+      - "8081:8081"
     environment:
-      - POSTGRESQL_USERNAME=test
-      - POSTGRESQL_PASSWORD=test
-      - POSTGRESQL_DATABASE=myDb
-    volumes:
-      - ./.docker/db/data:/var/lib/postgresql/:delegated
+      ME_CONFIG_MONGODB_SERVER: "mongo1"
+      ME_CONFIG_MONGODB_PORT: "27017"
+      ME_CONFIG_BASICAUTH_USERNAME: "admin"
+      ME_CONFIG_BASICAUTH_PASSWORD: "adminpassword"
+
+networks:
+  mongo-cluster:
+    driver: bridge
